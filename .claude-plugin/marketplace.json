@@ -1,0 +1,11 @@
+{
+  "name": "zenloop",
+  "owner": { "name": "Rohan Jain" },
+  "plugins": [
+    {
+      "name": "zenloop",
+      "source": "./",
+      "description": "Kane CLI verification gate for Claude Code: blocks 'done' until your plain-English browser specs pass."
+    }
+  ]
+}

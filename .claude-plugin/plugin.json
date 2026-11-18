@@ -1,0 +1,8 @@
+{
+  "name": "zenloop",
+  "version": "0.1.0",
+  "description": "Claude can't say 'done' until Kane CLI says pass: a Stop hook that verifies every change in a real browser and feeds failures back.",
+  "author": { "name": "Rohan Jain" },
+  "license": "MIT",
+  "keywords": ["kane-cli", "verification", "e2e", "hooks"]
+}

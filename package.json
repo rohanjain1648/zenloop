@@ -1,0 +1,34 @@
+{
+  "name": "zenloop",
+  "version": "0.1.0",
+  "description": "Your coding agent doesn't get to say 'done' until Kane CLI says pass. A Claude Code Stop hook that verifies every change in a real browser and feeds failures back to the agent.",
+  "type": "module",
+  "bin": {
+    "zenloop": "bin/zenloop.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "hooks/",
+    "commands/",
+    ".claude-plugin/",
+    "templates/"
+  ],
+  "scripts": {
+    "test": "node --test test/zenloop.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude-code",
+    "hooks",
+    "kane-cli",
+    "testmu",
+    "e2e",
+    "ai-agents",
+    "verification"
+  ],
+  "author": "Rohan Jain",
+  "license": "MIT"
+}
