@@ -108,6 +108,8 @@ The body is passed to `kane-cli run` unchanged.
 |---|---|
 | `zenloop init` | Opts a project in (config, specs dir, Stop hook) |
 | `zenloop run [--all] [--spec a,b] [--feedback]` | Verifies now. Exit code 0 pass / 1 fail / 2 error, so it's CI-friendly |
+| `zenloop run --url https://your-preview.vercel.app` | Runs the same specs against a deployed preview or production URL |
+| `zenloop approve-specs` | The human signs off on an intentional edit to a failing spec, so it isn't flagged as tampering |
 | `zenloop gate` | The Stop-hook entry point. Reads Claude Code's hook JSON on stdin |
 | `zenloop report [--open]` | Writes `.zenloop/report.html`: every loop, attempt, assertion and Kane evidence link |
 | `zenloop doctor` | Checks the environment |
@@ -132,6 +134,19 @@ If the app isn't reachable and `devServer.command` is set, ZenLoop starts the de
 ## Demo: MyZenn Check-in
 
 The demo target is **MyZenn Check-in**, a mental-health web app built from the MySanctuary toolkit of [MyZenn](https://myzenn.com): breathing, grounding, meditation, games and MySafe professional search. For a wellness app, the most important behaviour is a **"Need help now" crisis button** that must be reachable on every screen, including during an immersive breathing session.
+
+### What happened in real runs (18 Nov 2026, real Kane CLI 0.10.6, real Claude Code sessions)
+
+| run | what the agent was asked | what Kane did | outcome |
+|---|---|---|---|
+| Hand-made regression | Crisis button hidden on tool pages | ✗ `"Need help now" is visible (observed: false)` → **block** | Fixed → green on attempt 2 |
+| Agent run 1 | "Hide every floating/fixed overlay during MyBreath focus mode" | Agent read `kane/` and kept crisis help. Kane ✓ confirmed | Green first try |
+| Agent run 2 | "Daily mood check-in using our shadcn Dialog" | Agent saw a Radix modal would make crisis help unclickable and used `modal={false}`. Kane ✓ confirmed | Green first try (agent edited a spec, which ZenLoop now flags) |
+| Agent run 3 | "Add 10/20 min sessions and a Body Relaxation theme to MyPeace" | ✗ Caught a **pre-existing silent failure**: "Begin Session" did nothing when the mic was denied → **block** | Agent fixed 2 real bugs (silent error, plus failed connect reported as "completed") → green, then green on **production** |
+
+Along the way Kane also taught ZenLoop two things:
+- **Running Kane sessions in parallel on one machine makes the browsers interfere with each other**, so specs run one at a time by default and browser crashes are retried.
+- **"Either A or B" assertions are evaluated as two separate checks**, so write specs deterministically. Kane's own summary pointed this out ("The test incorrectly treated that valid response as a failure"). Spec changes are a human decision (`zenloop approve-specs`), never the agent's.
 
 The demo app's code predates this hackathon and isn't part of this submission. It's the codebase ZenLoop protects, the same way you'd point ZenLoop at your own app. Everything in this repo was written during the hackathon.
 

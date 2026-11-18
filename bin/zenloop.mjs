@@ -39,8 +39,9 @@ const HELP = `zenloop ${VERSION} — your agent isn't done until Kane CLI says p
   zenloop init [--url http://localhost:3000] [--dev "npm run dev"] [--no-hook]
         Opt this project in: config, example spec, Claude Code Stop hook.
         (--no-hook if you installed the ZenLoop Claude Code plugin instead.)
-  zenloop run [--spec id[,id]] [--all]
+  zenloop run [--spec id[,id]] [--all] [--url https://preview.example.com]
         Verify now (changed-file aware). Exit 0 pass, 1 fail, 2 error.
+        --url runs the same specs against a deployed preview/production URL.
   zenloop gate
         Claude Code Stop hook entry point (reads hook JSON on stdin).
   zenloop report [--open]
@@ -76,6 +77,11 @@ async function main() {
     case "run": {
       const root = requireRoot();
       const cfg = loadConfig(root);
+      if (flag("url")) {
+        // Verify a deployment (preview/production) instead of the local dev server.
+        cfg.baseUrl = flag("url");
+        cfg.devServer = null;
+      }
       const only = flag("spec") ? flag("spec").split(",") : null;
       const out = await verify(root, cfg, {
         session: "manual",
