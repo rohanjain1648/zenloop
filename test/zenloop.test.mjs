@@ -14,6 +14,22 @@ test("pass message flags spec files the agent edited", () => {
   assert.doesNotMatch(formatPass({ results: [{ name: "Hub" }], changed: ["src/a.tsx"] }), /changed spec/);
 });
 
+test("tool errors are reported separately and never as the agent's failure", () => {
+  const msg = formatFeedback({
+    attempt: 1,
+    maxAttempts: 3,
+    results: [
+      { name: "Peace", file: "k", severity: "normal", status: "failed", reason: "silent failure" },
+      { name: "Home", file: "k", severity: "critical", status: "error", reason: "no verdict" },
+    ],
+  });
+  assert.match(msg, /1 of 2 spec/);
+  assert.match(msg, /not your bug — ignore\): Home/);
+  assert.doesNotMatch(msg, /✗ \[critical\] Home/);
+  assert.ok(isInfraFlake({ status: "error", reason: "kane exited" }));
+  assert.ok(isInfraFlake({ status: "failed", reason: "Screenshot failed: Exception: screenshot: Connection closed while reading from the driver" }));
+});
+
 test("infra flakes are distinguished from real app failures", () => {
   assert.ok(isInfraFlake({ status: "failed", reason: "Screenshot failed: TargetClosedError: screenshot: Target page, context or browser has been closed" }));
   assert.ok(!isInfraFlake({ status: "failed", reason: "The Need help now button is not visible" }));

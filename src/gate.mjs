@@ -56,14 +56,20 @@ export async function gate() {
     return;
   }
 
-  const failed = out.results.filter((r) => r.status !== "passed");
+  // Only genuine app verdicts may block the agent; Kane/browser errors never do.
+  const failed = out.results.filter((r) => r.status === "failed" || r.status === "timeout");
+  const errored = out.results.filter((r) => r.status === "error");
+  if (!failed.length && errored.length) {
+    emit({
+      systemMessage: `ZenLoop: Kane could not produce a verdict for ${errored.map((r) => r.name).join("; ")} (${String(errored[0].reason || "tool error").slice(0, 160)}). Not blocking. Re-run with \`zenloop run\`.`,
+    });
+    return;
+  }
   if (!failed.length) {
     emit({ systemMessage: formatPass(out, cfg.specs) });
     return;
   }
 
-  // Infra problems (not logged in, server down) are not the agent's bug: tell it once, don't loop.
-  const infraOnly = failed.every((r) => r.status === "error");
   const max = cfg.maxAttempts ?? 3;
 
   if (out.attempt > max) {
@@ -72,11 +78,6 @@ export async function gate() {
         .map((r) => r.name)
         .join("; ")}. Run \`zenloop report\` to see every attempt.`,
     });
-    return;
-  }
-
-  if (infraOnly && input.stop_hook_active) {
-    emit({ systemMessage: `ZenLoop: Kane could not run (${failed[0].reason}). Not blocking.` });
     return;
   }
 

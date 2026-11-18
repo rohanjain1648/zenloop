@@ -15,11 +15,14 @@ import {
   isGitRepo,
 } from "./workspace.mjs";
 
-const INFRA_PATTERNS = /TargetClosedError|browser (has been )?closed|Target page, context or browser|ECONNRESET|CDP .*timed? ?out|Chrome .*(crash|failed to launch)/i;
+const INFRA_PATTERNS =
+  /TargetClosedError|browser (has been )?closed|Target page, context or browser|Connection closed while reading|reading from the driver|ECONNRESET|CDP .*timed? ?out|Chrome .*(crash|failed to launch)|Screenshot failed/i;
 
 /** A failure caused by the browser/tooling rather than by the app under test. */
 export function isInfraFlake(r) {
   if (r.status === "passed") return false;
+  // Kane exited without ever producing a verdict: tooling problem, not an app bug.
+  if (r.status === "error") return true;
   const text = [r.reason, r.summary, ...(r.errors || [])].filter(Boolean).join(" ");
   return INFRA_PATTERNS.test(text);
 }
@@ -153,7 +156,8 @@ export async function verify(root, cfg, { session = "manual", only = null, force
 
 /** The message Claude reads when the Stop hook blocks. Pure; unit-tested. */
 export function formatFeedback({ results, attempt, maxAttempts, changed, tampered = [] }) {
-  const failed = results.filter((r) => r.status !== "passed");
+  const failed = results.filter((r) => r.status === "failed" || r.status === "timeout");
+  const errored = results.filter((r) => r.status === "error");
   const lines = [];
   lines.push(
     `ZenLoop ✗ Kane CLI checked your change in a real browser: ${failed.length} of ${results.length} spec(s) did not pass (attempt ${attempt}/${maxAttempts}).`,
@@ -175,6 +179,7 @@ export function formatFeedback({ results, attempt, maxAttempts, changed, tampere
   }
   const passed = results.filter((r) => r.status === "passed");
   if (passed.length) lines.push(`✓ still passing: ${passed.map((r) => r.name).join("; ")}`);
+  if (errored.length) lines.push(`… Kane could not verify (tooling issue, not your bug — ignore): ${errored.map((r) => r.name).join("; ")}`);
   if (changed?.length) lines.push(`Files changed vs HEAD: ${changed.slice(0, 15).join(", ")}${changed.length > 15 ? " …" : ""}`);
   if (tampered.length) {
     lines.push("");

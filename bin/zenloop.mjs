@@ -47,6 +47,8 @@ const HELP = `zenloop ${VERSION} — your agent isn't done until Kane CLI says p
         Write .zenloop/report.html — every loop, attempt and Kane verdict.
   zenloop doctor
         Check kane-cli, login, config, app URL and specs.
+  zenloop approve-specs
+        You (the human) changed a failing spec on purpose: stop flagging it as tampering.
   zenloop reset
         Clear loop state (attempt counters, failing list).
 
@@ -109,6 +111,25 @@ async function main() {
       const file = writeReport(root);
       console.log(c.g("✓ ") + file);
       if (has("open")) openFile(file);
+      return;
+    }
+
+    case "approve-specs": {
+      // Human sign-off: spec edits made while specs were failing are intentional.
+      const root = requireRoot();
+      const cfg = loadConfig(root);
+      const st = readState(root);
+      const specs = loadSpecs(root, cfg.specs);
+      const approved = [];
+      for (const id of Object.keys(st.specHashes || {})) {
+        const s = specs.find((x) => x.id === id);
+        if (s && st.specHashes[id] !== s.hash) {
+          st.specHashes[id] = s.hash;
+          approved.push(id);
+        }
+      }
+      writeState(root, st);
+      console.log(approved.length ? c.g("✓ ") + `approved spec edits: ${approved.join(", ")}` : "no pending spec edits");
       return;
     }
 
