@@ -34,7 +34,7 @@ export function mergeStopHook(settings, command) {
   return { settings: s, added: !already };
 }
 
-export function init(root, { baseUrl, devCommand } = {}) {
+export function init(root, { baseUrl, devCommand, hook = true } = {}) {
   const done = [];
   const cfgPath = path.join(root, CONFIG_FILE);
   if (!fs.existsSync(cfgPath)) {
@@ -64,6 +64,10 @@ export function init(root, { baseUrl, devCommand } = {}) {
     done.push("added .zenloop/ to .gitignore");
   }
 
+  if (!hook) {
+    done.push("skipped settings hook (--no-hook: the ZenLoop Claude Code plugin provides it)");
+    return done;
+  }
   const settingsPath = path.join(root, ".claude", "settings.json");
   let settings = {};
   if (fs.existsSync(settingsPath)) {

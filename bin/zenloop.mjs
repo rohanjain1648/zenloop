@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { gate } from "../src/gate.mjs";
 import { init } from "../src/init.mjs";
@@ -37,8 +36,9 @@ function openFile(file) {
 
 const HELP = `zenloop ${VERSION} — your agent isn't done until Kane CLI says pass.
 
-  zenloop init [--url http://localhost:3000] [--dev "npm run dev"]
+  zenloop init [--url http://localhost:3000] [--dev "npm run dev"] [--no-hook]
         Opt this project in: config, example spec, Claude Code Stop hook.
+        (--no-hook if you installed the ZenLoop Claude Code plugin instead.)
   zenloop run [--spec id[,id]] [--all]
         Verify now (changed-file aware). Exit 0 pass, 1 fail, 2 error.
   zenloop gate
@@ -66,7 +66,7 @@ async function main() {
 
     case "init": {
       const root = process.cwd();
-      for (const line of init(root, { baseUrl: flag("url"), devCommand: flag("dev") })) console.log(c.g("✓ ") + line);
+      for (const line of init(root, { baseUrl: flag("url"), devCommand: flag("dev"), hook: !has("no-hook") })) console.log(c.g("✓ ") + line);
       console.log(`\nNext: write specs in ${c.b("kane/")}, then ${c.b("zenloop doctor")}. Claude Code now can't finish a task until they pass.`);
       return;
     }

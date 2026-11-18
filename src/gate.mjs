@@ -14,7 +14,8 @@ async function readStdin() {
   let data = "";
   for await (const chunk of process.stdin) data += chunk;
   try {
-    return JSON.parse(data || "{}");
+    // Windows shells may prepend a BOM when piping.
+    return JSON.parse(data.replace(/^﻿/, "").trim() || "{}");
   } catch {
     return {};
   }
