@@ -63,7 +63,8 @@ export function renderReport(runs, { project = "" } = {}) {
             .join("");
           return `<div class="attempt ${a.passed ? "green" : "red"}">
             <div class="attempt-head"><span class="dot"></span>Attempt ${a.attempt} · ${esc(new Date(a.ts).toLocaleString())}
-            ${a.tampered?.length ? `<span class="badge warn">spec edited while failing</span>` : ""}</div>
+            ${a.tampered?.length ? `<span class="badge warn">spec edited while failing</span>` : ""}
+            ${(a.changed || []).some((f) => f.endsWith(".kane.md")) ? `<span class="badge warn">agent edited a spec</span>` : ""}</div>
             ${a.changed?.length ? `<p class="files">Changed: ${a.changed.slice(0, 12).map((f) => `<code>${esc(f)}</code>`).join(" ")}</p>` : ""}
             <ul>${rows}</ul>
           </div>`;

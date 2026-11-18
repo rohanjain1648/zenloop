@@ -5,7 +5,14 @@ import os from "node:os";
 import path from "node:path";
 import { parseFrontmatter, globToRegExp, selectSpecs, loadSpecs } from "../src/specs.mjs";
 import { parseKaneOutput, buildRunArgs } from "../src/kane.mjs";
-import { formatFeedback, isInfraFlake } from "../src/engine.mjs";
+import { formatFeedback, formatPass, isInfraFlake } from "../src/engine.mjs";
+
+test("pass message flags spec files the agent edited", () => {
+  const msg = formatPass({ results: [{ name: "Hub" }], record: { credits: 20 }, changed: ["src/a.tsx", "kane/hub.kane.md"] }, "kane");
+  assert.match(msg, /verified 1 spec/);
+  assert.match(msg, /changed spec file\(s\) in this task: kane\/hub\.kane\.md/);
+  assert.doesNotMatch(formatPass({ results: [{ name: "Hub" }], changed: ["src/a.tsx"] }), /changed spec/);
+});
 
 test("infra flakes are distinguished from real app failures", () => {
   assert.ok(isInfraFlake({ status: "failed", reason: "Screenshot failed: TargetClosedError: screenshot: Target page, context or browser has been closed" }));

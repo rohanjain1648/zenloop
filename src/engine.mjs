@@ -184,7 +184,9 @@ export function formatFeedback({ results, attempt, maxAttempts, changed, tampere
   return lines.join("\n");
 }
 
-export function formatPass({ results, record }) {
+export function formatPass({ results, record, changed = [] }, specDir = "kane") {
   const credits = record?.credits ? ` · ${record.credits.toFixed(1)} credits` : "";
-  return `ZenLoop ✓ Kane CLI verified ${results.length} spec(s) in a real browser${credits}: ${results.map((r) => r.name).join("; ")}`;
+  const editedSpecs = changed.filter((f) => f.startsWith(specDir.replace(/\/$/, "") + "/") && f.endsWith(".kane.md"));
+  const note = editedSpecs.length ? `\n⚠ The agent changed spec file(s) in this task: ${editedSpecs.join(", ")} — review the diff before merging.` : "";
+  return `ZenLoop ✓ Kane CLI verified ${results.length} spec(s) in a real browser${credits}: ${results.map((r) => r.name).join("; ")}${note}`;
 }

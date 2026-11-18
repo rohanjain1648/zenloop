@@ -58,7 +58,7 @@ export async function gate() {
 
   const failed = out.results.filter((r) => r.status !== "passed");
   if (!failed.length) {
-    emit({ systemMessage: formatPass(out) });
+    emit({ systemMessage: formatPass(out, cfg.specs) });
     return;
   }
 
