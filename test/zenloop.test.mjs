@@ -5,7 +5,33 @@ import os from "node:os";
 import path from "node:path";
 import { parseFrontmatter, globToRegExp, selectSpecs, loadSpecs } from "../src/specs.mjs";
 import { parseKaneOutput, buildRunArgs } from "../src/kane.mjs";
-import { formatFeedback } from "../src/engine.mjs";
+import { formatFeedback, isInfraFlake } from "../src/engine.mjs";
+
+test("infra flakes are distinguished from real app failures", () => {
+  assert.ok(isInfraFlake({ status: "failed", reason: "Screenshot failed: TargetClosedError: screenshot: Target page, context or browser has been closed" }));
+  assert.ok(!isInfraFlake({ status: "failed", reason: "The Need help now button is not visible" }));
+  assert.ok(!isInfraFlake({ status: "passed", reason: "TargetClosedError" }));
+});
+
+test("kane conditions: failed assertions surface with observed value", () => {
+  const end = {
+    type: "run_end",
+    status: "failed",
+    reason: "Objective not met",
+    context: {
+      memory: {
+        help_visible: { condition: "A button labelled Need help now is visible", extracted_value: "false", reasoning: "value: 'false' -> 'false'; equals 'true' -> FAIL" },
+        page_loaded: { condition: "Page loaded", extracted_value: "true", reasoning: "value: 'true' -> 'true'; equals 'true' -> PASS" },
+      },
+    },
+  };
+  const r = parseKaneOutput(JSON.stringify(end), 1);
+  assert.equal(r.conditions.length, 2);
+  assert.equal(r.failedConditions.length, 1);
+  assert.equal(r.failedConditions[0].observed, "false");
+  const msg = formatFeedback({ attempt: 1, maxAttempts: 3, results: [{ name: "Crisis", file: "k", severity: "critical", ...r }] });
+  assert.match(msg, /Assertion failed: A button labelled Need help now is visible \(observed: false\)/);
+});
 import { mergeStopHook } from "../src/init.mjs";
 import { renderReport } from "../src/report.mjs";
 

@@ -15,6 +15,15 @@ import {
   isGitRepo,
 } from "./workspace.mjs";
 
+const INFRA_PATTERNS = /TargetClosedError|browser (has been )?closed|Target page, context or browser|ECONNRESET|CDP .*timed? ?out|Chrome .*(crash|failed to launch)/i;
+
+/** A failure caused by the browser/tooling rather than by the app under test. */
+export function isInfraFlake(r) {
+  if (r.status === "passed") return false;
+  const text = [r.reason, r.summary, ...(r.errors || [])].filter(Boolean).join(" ");
+  return INFRA_PATTERNS.test(text);
+}
+
 async function ensureServer(root, cfg, log) {
   if (await isReachable(cfg.baseUrl)) return { ok: true };
   const ds = cfg.devServer;
@@ -79,15 +88,30 @@ export async function verify(root, cfg, { session = "manual", only = null, force
       results.push({ spec: s.id, name: s.name, file: s.file, severity: s.severity, status: "error", reason: server.reason, steps: [], credits: 0 });
     }
   } else {
-    for (const s of selected) {
-      log(`kane ▸ ${s.name}`);
-      const r = await runSpec(s, cfg.baseUrl, cfg.kane, {
-        logFile: path.join(root, ".zenloop", "runs", runId, `${s.id}.ndjson`),
-        onEvent,
-      });
-      results.push({ spec: s.id, name: s.name, file: s.file, severity: s.severity, objective: s.objective, ...r });
-      log(`kane ◂ ${s.name}: ${r.status}${r.oneLiner ? " — " + r.oneLiner : ""}`);
-    }
+    // Bounded parallelism: each Kane run drives its own Chrome.
+    const limit = Math.max(1, Math.min(Number(cfg.parallel) || 1, selected.length));
+    const slots = new Array(selected.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < selected.length) {
+        const i = next++;
+        const s = selected[i];
+        log(`kane ▸ ${s.name}`);
+        const logFile = path.join(root, ".zenloop", "runs", runId, `${s.id}.ndjson`);
+        let r = await runSpec(s, cfg.baseUrl, cfg.kane, { logFile, onEvent });
+        if (isInfraFlake(r)) {
+          // Browser/infra hiccup is not the agent's bug: retry once before reporting.
+          log(`kane ↻ ${s.name}: infrastructure flake (${String(r.reason || r.summary).slice(0, 80)}), retrying once`);
+          const retry = await runSpec(s, cfg.baseUrl, cfg.kane, { logFile: logFile.replace(/\.ndjson$/, ".retry.ndjson"), onEvent });
+          r = { ...retry, retried: true };
+          if (isInfraFlake(r)) r = { ...r, status: "error" };
+        }
+        slots[i] = { spec: s.id, name: s.name, file: s.file, severity: s.severity, objective: s.objective, ...r };
+        log(`kane ◂ ${s.name}: ${r.status}${r.oneLiner ? " — " + r.oneLiner : ""}`);
+      }
+    };
+    await Promise.all(Array.from({ length: limit }, worker));
+    results.push(...slots);
   }
 
   const failing = results.filter((r) => r.status !== "passed").map((r) => r.spec);
@@ -141,6 +165,9 @@ export function formatFeedback({ results, attempt, maxAttempts, changed, tampere
     if (r.objective) lines.push(`  What must be true: ${r.objective.replace(/\s+/g, " ").slice(0, 600)}`);
     lines.push(`  Kane verdict: ${r.status}${r.reason ? " — " + r.reason : ""}`);
     if (r.lastFailedStep) lines.push(`  Failed at step: ${r.lastFailedStep}`);
+    for (const fc of r.failedConditions || []) {
+      lines.push(`  ✗ Assertion failed: ${fc.condition}${fc.observed !== null ? ` (observed: ${fc.observed})` : ""}`);
+    }
     if (r.summary && r.summary !== r.reason) lines.push(`  Summary: ${String(r.summary).slice(0, 500)}`);
     if (r.url) lines.push(`  Page: ${r.url}`);
     if (r.testUrl) lines.push(`  Evidence: ${r.testUrl}`);

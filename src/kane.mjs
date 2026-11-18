@@ -89,6 +89,15 @@ export function parseKaneOutput(stdout, exitCode) {
   const failedSteps = steps.filter((s) => s.status === "failed");
   const lastFailed = failedSteps[failedSteps.length - 1] || null;
 
+  // Kane records one verdict per assertion in run_end.context.memory.
+  const conditions = Object.entries(end?.context?.memory || {})
+    .filter(([, m]) => m && typeof m === "object" && (m.condition || m.reasoning))
+    .map(([key, m]) => {
+      const reasoning = String(m.reasoning || "");
+      const verdict = /->\s*FAIL\b|\bFAIL(ED)?\b/.test(reasoning) ? "fail" : /->\s*PASS\b/.test(reasoning) ? "pass" : "unknown";
+      return { key, condition: m.condition || m.human_description || key, verdict, observed: m.extracted_value ?? null, reasoning };
+    });
+
   return {
     status,
     exitCode,
@@ -102,6 +111,9 @@ export function parseKaneOutput(stdout, exitCode) {
     sessionDir: end?.session_dir || null,
     steps: steps.map((s) => ({ step: s.step, status: s.status, remark: s.remark })),
     lastFailedStep: lastFailed ? lastFailed.remark : null,
+    conditions,
+    failedConditions: conditions.filter((c) => c.verdict === "fail"),
+    reasonCode: end?.reason_code || null,
     errors,
     warnings,
   };

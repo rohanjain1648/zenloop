@@ -12,6 +12,7 @@ export const DEFAULT_CONFIG = {
   baseUrl: "http://localhost:3000",
   specs: "kane",
   maxAttempts: 3,
+  parallel: 1,
   trigger: "changes",
   ignore: [".zenloop/**", "node_modules/**", "dist/**", ".git/**"],
   devServer: null,

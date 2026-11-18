@@ -51,6 +51,9 @@ export function renderReport(runs, { project = "" } = {}) {
               <div class="spec-head">${badge(r.status)}<strong>${esc(r.name)}</strong><code>${esc(r.file)}</code></div>
               ${r.status !== "passed" && r.reason ? `<p class="reason">${esc(r.reason)}</p>` : ""}
               ${r.status !== "passed" && r.lastFailedStep ? `<p class="step">Failed at: ${esc(r.lastFailedStep)}</p>` : ""}
+              ${(r.conditions || []).length ? `<ul class="conds">${r.conditions
+                .map((cd) => `<li class="${cd.verdict}">${cd.verdict === "pass" ? "✓" : cd.verdict === "fail" ? "✗" : "•"} ${esc(cd.condition)}</li>`)
+                .join("")}</ul>` : ""}
               ${r.status === "passed" && r.oneLiner ? `<p class="step">${esc(r.oneLiner)}</p>` : ""}
               <p class="meta">${r.durationMs ? (r.durationMs / 1000).toFixed(0) + "s" : ""}${r.credits ? " · " + r.credits.toFixed(1) + " credits" : ""}${
                 r.testUrl ? ` · <a href="${esc(r.testUrl)}" target="_blank" rel="noopener">Kane evidence ↗</a>` : ""
@@ -98,6 +101,7 @@ h1{font-size:28px;margin:0 0 4px;letter-spacing:-.01em}.sub{color:var(--muted);m
 .spec-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.spec code,.files code{font-size:12px;color:var(--muted)}
 .reason{margin:6px 0 0;color:var(--bad)}.step{margin:4px 0 0;color:var(--muted);font-size:14px}.meta{margin:4px 0 0;font-size:12px;color:var(--muted)}
 .files{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.conds{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px;font-size:13px}.conds .pass{color:var(--ok)}.conds .fail{color:var(--bad);font-weight:600}.conds .unknown{color:var(--muted)}
 a{color:var(--accent)}
 .badge{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}.ok{color:var(--ok);background:var(--okbg)}.bad{color:var(--bad);background:var(--badbg)}.warn{color:var(--warn);background:var(--warnbg)}
 .empty{color:var(--muted);text-align:center;padding:60px 0}
