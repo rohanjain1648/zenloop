@@ -51,6 +51,11 @@ export function renderReport(runs, { project = "" } = {}) {
               <div class="spec-head">${badge(r.status)}<strong>${esc(r.name)}</strong><code>${esc(r.file)}</code></div>
               ${r.status !== "passed" && r.reason ? `<p class="reason">${esc(r.reason)}</p>` : ""}
               ${r.status !== "passed" && r.lastFailedStep ? `<p class="step">Failed at: ${esc(r.lastFailedStep)}</p>` : ""}
+              ${r.evidence?.rootCause ? `<p class="rca"><b>Kane root cause</b> ${esc(r.evidence.rootCause)}${r.evidence.category ? ` <code>${esc(r.evidence.category)}</code>` : ""}</p>` : ""}
+              ${r.evidence?.suggestedFix ? `<p class="rca"><b>Suggested fix</b> ${esc(r.evidence.suggestedFix)}</p>` : ""}
+              ${r.evidence?.screenshot ? `<a href="${esc(r.evidence.screenshot.replace(/^\.zenloop\//, ""))}" target="_blank" rel="noopener"><img class="shot" alt="Screenshot of the failing screen captured by Kane" src="${esc(r.evidence.screenshot.replace(/^\.zenloop\//, ""))}"></a>` : ""}
+              ${(r.evidence?.consoleErrors || []).map((e) => `<p class="step">Console: ${esc(e)}</p>`).join("")}
+              ${(r.evidence?.failedRequests || []).map((e) => `<p class="step">Network: ${esc(e)}</p>`).join("")}
               ${(r.conditions || []).length ? `<ul class="conds">${r.conditions
                 .map((cd) => `<li class="${cd.verdict}">${cd.verdict === "pass" ? "✓" : cd.verdict === "fail" ? "✗" : "•"} ${esc(cd.condition)}</li>`)
                 .join("")}</ul>` : ""}
@@ -102,6 +107,8 @@ h1{font-size:28px;margin:0 0 4px;letter-spacing:-.01em}.sub{color:var(--muted);m
 .spec-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.spec code,.files code{font-size:12px;color:var(--muted)}
 .reason{margin:6px 0 0;color:var(--bad)}.step{margin:4px 0 0;color:var(--muted);font-size:14px}.meta{margin:4px 0 0;font-size:12px;color:var(--muted)}
 .files{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.rca{margin:6px 0 0;font-size:14px}.rca b{display:inline-block;margin-right:6px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.shot{display:block;margin-top:8px;max-width:100%;width:420px;border-radius:10px;border:1px solid var(--line)}
 .conds{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px;font-size:13px}.conds .pass{color:var(--ok)}.conds .fail{color:var(--bad);font-weight:600}.conds .unknown{color:var(--muted)}
 a{color:var(--accent)}
 .badge{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}.ok{color:var(--ok);background:var(--okbg)}.bad{color:var(--bad);background:var(--badbg)}.warn{color:var(--warn);background:var(--warnbg)}

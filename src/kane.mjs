@@ -54,6 +54,29 @@ export function buildRunArgs(spec, baseUrl, kaneCfg = {}) {
   return { args, url };
 }
 
+/**
+ * Convert a ZenLoop spec into a Kane `_test.md` so it can be recorded once and replayed
+ * (no LLM cost on replay). One spec line = one Kane step. Pure; unit-tested.
+ */
+export function specToTestmd(spec) {
+  const steps = spec.objective
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const fm = ["---", "mode: testing", `max_steps: ${spec.maxSteps ?? 30}`];
+  if (spec.timeout) fm.push(`timeout: ${spec.timeout}`);
+  fm.push("---", "", `# ${spec.name}`, "");
+  return [...fm, ...steps.flatMap((s, i) => [`## Step ${i + 1}`, s, ""])].join("\n");
+}
+
+/** Args for `kane-cli testmd run` (replay mode). */
+export function buildTestmdArgs(file, url, kaneCfg = {}) {
+  const args = ["testmd", "run", file, "--url", url, "--agent", "--mode", "testing"];
+  if (kaneCfg.timeout) args.push("--timeout", String(kaneCfg.timeout));
+  if (kaneCfg.headless !== false) args.push("--headless");
+  return args;
+}
+
 /** Parse Kane NDJSON output into a compact result. Pure; unit-tested. */
 export function parseKaneOutput(stdout, exitCode) {
   const steps = [];
@@ -69,7 +92,7 @@ export function parseKaneOutput(stdout, exitCode) {
     } catch {
       continue;
     }
-    if (ev.type === "run_end") end = ev;
+    if (ev.type === "run_end" || ev.type === "test_md_done") end = { ...(end || {}), ...ev };
     else if (ev.type === "error") errors.push(ev.message || ev.error || JSON.stringify(ev));
     else if (ev.type === "warning") warnings.push(ev.message || ev.code || "");
     else if (!ev.type && ev.step !== undefined) {
@@ -119,10 +142,29 @@ export function parseKaneOutput(stdout, exitCode) {
   };
 }
 
-/** Run one spec through Kane CLI. Resolves (never rejects) with a parsed result. */
-export function runSpec(spec, baseUrl, kaneCfg = {}, { logFile, onEvent } = {}) {
+/**
+ * Run one spec through Kane CLI. Resolves (never rejects) with a parsed result.
+ * With `replayDir`, the spec runs as a recorded `_test.md` (record once, replay cheaply).
+ */
+export function runSpec(spec, baseUrl, kaneCfg = {}, { logFile, onEvent, replayDir } = {}) {
   const { cmd, pre } = resolveKane();
-  const { args, url } = buildRunArgs(spec, baseUrl, kaneCfg);
+  let { args, url } = buildRunArgs(spec, baseUrl, kaneCfg);
+  let cwd;
+  if (replayDir) {
+    fs.mkdirSync(replayDir, { recursive: true });
+    const file = `${spec.id}_test.md`;
+    const full = path.join(replayDir, file);
+    const content = specToTestmd(spec);
+    const stamp = path.join(replayDir, `.${spec.id}.hash`);
+    // Spec changed since it was recorded: drop the old recording so Kane re-authors it.
+    if (!fs.existsSync(stamp) || fs.readFileSync(stamp, "utf8") !== spec.hash) {
+      fs.rmSync(path.join(replayDir, `output-${spec.id}_test`), { recursive: true, force: true });
+      fs.writeFileSync(full, content);
+      fs.writeFileSync(stamp, spec.hash);
+    }
+    args = buildTestmdArgs(file, url, kaneCfg);
+    cwd = replayDir;
+  }
   const started = Date.now();
 
   return new Promise((resolve) => {
@@ -130,6 +172,7 @@ export function runSpec(spec, baseUrl, kaneCfg = {}, { logFile, onEvent } = {}) 
     let stderr = "";
     let buf = "";
     const child = spawn(cmd, [...pre, ...args], {
+      cwd,
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, KANE_CLI_USER_AGENT: "zenloop" },
       windowsHide: true,

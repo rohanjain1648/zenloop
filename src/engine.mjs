@@ -1,8 +1,10 @@
 // The verify engine shared by `zenloop run` (human) and `zenloop gate` (agent hook).
 
+import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { loadSpecs, selectSpecs, matchesAny } from "./specs.mjs";
+import { findPack, distilPack } from "./evidence.mjs";
+import { loadSpecs, selectSpecs, matchesAny, applicableSpecs } from "./specs.mjs";
 import { runSpec } from "./kane.mjs";
 import {
   changedFiles,
@@ -25,6 +27,20 @@ export function isInfraFlake(r) {
   if (r.status === "error") return true;
   const text = [r.reason, r.summary, ...(r.errors || [])].filter(Boolean).join(" ");
   return INFRA_PATTERNS.test(text);
+}
+
+/** Pull Kane's triage, failing screenshot, console and network failures out of the evidence pack. */
+function collectEvidence(root, runId, specId, result, logFile) {
+  try {
+    const nd = fs.existsSync(logFile) ? fs.readFileSync(logFile, "utf8") : "";
+    const pack = findPack(nd, result.sessionDir);
+    if (!pack) return null;
+    const ev = distilPack(pack, { outDir: path.join(root, ".zenloop", "evidence", runId), baseName: specId });
+    if (ev?.screenshot) ev.screenshot = path.relative(root, ev.screenshot).split(path.sep).join("/");
+    return ev ? { ...ev, pack } : null;
+  } catch {
+    return null;
+  }
 }
 
 async function ensureServer(root, cfg, log) {
@@ -64,7 +80,7 @@ export async function verify(root, cfg, { session = "manual", only = null, force
     return { skipped: "no changes since last green run", results: [], selected: [], changed, fp };
   }
 
-  const specs = loadSpecs(root, cfg.specs);
+  const specs = applicableSpecs(loadSpecs(root, cfg.specs), cfg.baseUrl);
   if (!specs.length) return { skipped: `no specs found in ${cfg.specs}/ (*.kane.md)`, results: [], selected: [], changed, fp };
 
   let selected = only
@@ -101,13 +117,17 @@ export async function verify(root, cfg, { session = "manual", only = null, force
         const s = selected[i];
         log(`kane ▸ ${s.name}`);
         const logFile = path.join(root, ".zenloop", "runs", runId, `${s.id}.ndjson`);
-        let r = await runSpec(s, cfg.baseUrl, cfg.kane, { logFile, onEvent });
+        const replayDir = cfg.replay ? path.join(root, ".zenloop", "replay") : undefined;
+        let r = await runSpec(s, cfg.baseUrl, cfg.kane, { logFile, onEvent, replayDir });
         if (isInfraFlake(r)) {
           // Browser/infra hiccup is not the agent's bug: retry once before reporting.
           log(`kane ↻ ${s.name}: infrastructure flake (${String(r.reason || r.summary).slice(0, 80)}), retrying once`);
-          const retry = await runSpec(s, cfg.baseUrl, cfg.kane, { logFile: logFile.replace(/\.ndjson$/, ".retry.ndjson"), onEvent });
+          const retry = await runSpec(s, cfg.baseUrl, cfg.kane, { logFile: logFile.replace(/\.ndjson$/, ".retry.ndjson"), onEvent, replayDir });
           r = { ...retry, retried: true };
           if (isInfraFlake(r)) r = { ...r, status: "error" };
+        }
+        if (r.status === "failed" || r.status === "timeout") {
+          r.evidence = collectEvidence(root, runId, s.id, r, r.retried ? logFile.replace(/\.ndjson$/, ".retry.ndjson") : logFile);
         }
         slots[i] = { spec: s.id, name: s.name, file: s.file, severity: s.severity, objective: s.objective, ...r };
         log(`kane ◂ ${s.name}: ${r.status}${r.oneLiner ? " — " + r.oneLiner : ""}`);
@@ -172,7 +192,17 @@ export function formatFeedback({ results, attempt, maxAttempts, changed, tampere
     for (const fc of r.failedConditions || []) {
       lines.push(`  ✗ Assertion failed: ${fc.condition}${fc.observed !== null ? ` (observed: ${fc.observed})` : ""}`);
     }
-    if (r.summary && r.summary !== r.reason) lines.push(`  Summary: ${String(r.summary).slice(0, 500)}`);
+    const ev = r.evidence;
+    if (ev?.rootCause) {
+      lines.push(`  Kane root cause${ev.confidence ? ` (confidence ${ev.confidence})` : ""}: ${ev.rootCause}`);
+      if (ev.category) lines.push(`  Category: ${ev.category}`);
+      if (ev.suggestedFix) lines.push(`  Kane suggests: ${ev.suggestedFix}`);
+    } else if (r.summary && r.summary !== r.reason) {
+      lines.push(`  Summary: ${String(r.summary).slice(0, 500)}`);
+    }
+    if (ev?.screenshot) lines.push(`  Screenshot of the failing screen: ${ev.screenshot}  ← open it with your Read tool to see exactly what Kane saw`);
+    for (const ce of ev?.consoleErrors || []) lines.push(`  Console error: ${ce}`);
+    for (const fr of ev?.failedRequests || []) lines.push(`  Failed request: ${fr}`);
     if (r.url) lines.push(`  Page: ${r.url}`);
     if (r.testUrl) lines.push(`  Evidence: ${r.testUrl}`);
     lines.push("");

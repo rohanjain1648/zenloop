@@ -93,6 +93,49 @@ Click it and verify a dialog titled "You are not alone" shows the helpline numbe
 
 The body is passed to `kane-cli run` unchanged.
 
+## The agent sees what Kane saw
+
+When a spec fails, ZenLoop opens Kane's `.evidence` pack and gives the agent more than a "failed". It passes on:
+
+- **Kane's own root-cause triage**: `root_cause`, `category` (e.g. `application_issue/ui_state_mismatch`), `confidence` and `suggested_fix`.
+- **The screenshot of the failing step**, copied to `.zenloop/evidence/…`. Claude is told to open it with its Read tool, so it can see the broken screen.
+- **Console errors and failed network requests** captured at the moment of failure. Credentials in query strings are redacted.
+
+```
+✗ [critical] Crisis help stays reachable during a breathing session  (kane/crisis-help-during-breathing.kane.md)
+  ✗ Assertion failed: A button labelled "Need help now" is visible on screen. (observed: false)
+  Kane root cause (confidence 0.9): Starting the breathing session changes the screen to the
+    active-session view, which … does not keep the emergency help button visible.
+  Category: application_issue/ui_state_mismatch
+  Kane suggests: Keep a clearly labelled "Need help now" button visible throughout an active session…
+  Screenshot of the failing screen: .zenloop/evidence/2026-…/crisis-help-during-breathing.jpg
+    ← open it with your Read tool to see exactly what Kane saw
+```
+
+The HTML report (`zenloop report`) shows the same root cause, suggested fix and a screenshot thumbnail for every failed attempt.
+
+## Spec packs: security checks in one command
+
+```bash
+zenloop add security
+```
+
+This adds five plain-English Kane specs, based on the Kane CLI cookbook:
+
+| spec | catches |
+|---|---|
+| `sec-no-keys-in-network` | API keys or secrets (`AIza…`, `sk-…`, `gsk_…`) sent from the browser |
+| `sec-no-secrets-in-storage` | Passwords, tokens or keys in `localStorage` |
+| `sec-no-env-leak` *(deployed only)* | A production build calling staging, localhost or debug endpoints |
+| `sec-cookies-secure` *(deployed only)* | Cookies without the `Secure` flag |
+| `sec-green-page-no-errors` | Hidden 5xx responses or console errors behind a page that looks fine |
+
+Specs marked `deployed_only: true` are skipped against a local dev server and run with `zenloop run --url https://your-deploy`.
+
+## Replay mode (experimental)
+
+Set `"replay": true` in `zenloop.config.json`. Each spec is then compiled to a Kane `_test.md`, one step per line, and run with `kane-cli testmd run`. The first run records it, and later runs replay the recording instead of re-planning every step with the model. If the spec text changes, the recording is thrown away and re-authored.
+
 ## Why the loop stays honest
 
 - **Change-aware.** It hashes the working tree against `HEAD`. If nothing changed since the last green run, it runs nothing and spends no credits. Only specs whose `watch` globs match the changed files run, plus any spec that failed last time.

@@ -93,6 +93,7 @@ export function loadSpecs(root, specDir) {
         url: data.url || null,
         watch,
         severity: data.severity || "normal",
+        deployedOnly: data.deployed_only === true,
         maxSteps: data.max_steps ?? data.maxSteps ?? null,
         timeout: data.timeout ?? null,
         objective: body,
@@ -131,6 +132,21 @@ export function globToRegExp(glob) {
     }
   }
   return new RegExp(`^${re}$`);
+}
+
+/** True when the app under test is a local dev server rather than a deployment. */
+export function isLocalUrl(url) {
+  try {
+    const h = new URL(url).hostname;
+    return h === "localhost" || h === "::1" || h === "[::1]" || /^127\./.test(h) || h.endsWith(".localhost");
+  } catch {
+    return false;
+  }
+}
+
+/** Drop `deployed_only` specs when verifying a local dev server. */
+export function applicableSpecs(specs, baseUrl) {
+  return isLocalUrl(baseUrl) ? specs.filter((s) => !s.deployedOnly) : specs;
 }
 
 export function matchesAny(file, globs) {

@@ -34,6 +34,34 @@ export function mergeStopHook(settings, command) {
   return { settings: s, added: !already };
 }
 
+export const PACKS_DIR = path.resolve(HERE, "..", "templates");
+
+export function listPacks() {
+  try {
+    return fs.readdirSync(PACKS_DIR).filter((d) => fs.statSync(path.join(PACKS_DIR, d)).isDirectory());
+  } catch {
+    return [];
+  }
+}
+
+/** Copy a spec pack (e.g. `security`) into the project's specs dir. Never overwrites. */
+export function addPack(root, specDir, pack) {
+  const src = path.join(PACKS_DIR, pack);
+  if (!fs.existsSync(src)) throw new Error(`unknown pack "${pack}". Available: ${listPacks().join(", ")}`);
+  const dest = path.resolve(root, specDir);
+  fs.mkdirSync(dest, { recursive: true });
+  const out = [];
+  for (const f of fs.readdirSync(src).filter((x) => x.endsWith(".kane.md"))) {
+    const target = path.join(dest, f);
+    if (fs.existsSync(target)) out.push(`kept existing ${specDir}/${f}`);
+    else {
+      fs.copyFileSync(path.join(src, f), target);
+      out.push(`added ${specDir}/${f}`);
+    }
+  }
+  return out;
+}
+
 export function init(root, { baseUrl, devCommand, hook = true } = {}) {
   const done = [];
   const cfgPath = path.join(root, CONFIG_FILE);

@@ -4,7 +4,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseFrontmatter, globToRegExp, selectSpecs, loadSpecs } from "../src/specs.mjs";
-import { parseKaneOutput, buildRunArgs } from "../src/kane.mjs";
+import { parseKaneOutput, buildRunArgs, specToTestmd, buildTestmdArgs } from "../src/kane.mjs";
+
+test("replay: spec becomes a Kane _test.md with one step per line", () => {
+  const md = specToTestmd({ name: "Crisis", objective: "Open the page.\n\nClick \"Need help now\".\nVerify 14416 is shown.", maxSteps: 20 });
+  assert.match(md, /^---\nmode: testing\nmax_steps: 20\n---/);
+  assert.match(md, /## Step 1\nOpen the page\.\n/);
+  assert.match(md, /## Step 3\nVerify 14416 is shown\./);
+  assert.ok(!md.includes("## Step 4"));
+  const args = buildTestmdArgs("crisis_test.md", "http://localhost:3000/", { headless: true });
+  assert.deepEqual(args.slice(0, 5), ["testmd", "run", "crisis_test.md", "--url", "http://localhost:3000/"]);
+  assert.ok(args.includes("--agent") && args.includes("--headless"));
+});
+
+test("testmd terminal event is parsed like run_end", () => {
+  const r = parseKaneOutput('{"type":"test_md_done","status":"failed","reason":"step 2 failed"}', 1);
+  assert.equal(r.status, "failed");
+  assert.equal(r.reason, "step 2 failed");
+});
 import { formatFeedback, formatPass, isInfraFlake } from "../src/engine.mjs";
 
 test("pass message flags spec files the agent edited", () => {
@@ -69,6 +86,29 @@ test("frontmatter: scalars, inline lists, dash lists, CRLF, BOM", () => {
 
 test("no frontmatter: whole file is the objective", () => {
   assert.deepEqual(parseFrontmatter("Just do it"), { data: {}, body: "Just do it" });
+});
+
+test("deployed_only specs are skipped against local dev servers", async () => {
+  const { isLocalUrl, applicableSpecs } = await import("../src/specs.mjs");
+  assert.ok(isLocalUrl("http://localhost:3000"));
+  assert.ok(isLocalUrl("http://127.0.0.1:5173/x"));
+  assert.ok(!isLocalUrl("https://myzenn-checkin.vercel.app"));
+  const specs = [{ id: "a" }, { id: "b", deployedOnly: true }];
+  assert.deepEqual(applicableSpecs(specs, "http://localhost:3000").map((s) => s.id), ["a"]);
+  assert.deepEqual(applicableSpecs(specs, "https://x.vercel.app").map((s) => s.id), ["a", "b"]);
+});
+
+test("security pack: parses, quoted names with colons, never overwrites", async () => {
+  const { addPack } = await import("../src/init.mjs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zl-pack-"));
+  const first = addPack(dir, "kane", "security");
+  assert.ok(first.length >= 5 && first.every((l) => l.startsWith("added")));
+  const specs = loadSpecs(dir, "kane");
+  const leak = specs.find((s) => s.id === "sec-no-env-leak");
+  assert.equal(leak.name, "Security: deployed build doesn't call staging, localhost or debug endpoints");
+  assert.equal(leak.deployedOnly, true);
+  assert.ok(addPack(dir, "kane", "security").every((l) => l.startsWith("kept")));
+  assert.throws(() => addPack(dir, "kane", "nope"), /unknown pack/);
 });
 
 test("globs", () => {

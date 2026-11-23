@@ -15,7 +15,7 @@
     "templates/"
   ],
   "scripts": {
-    "test": "node --test test/zenloop.test.mjs"
+    "test": "node --test test/zenloop.test.mjs test/evidence.test.mjs"
   },
   "engines": {
     "node": ">=18"

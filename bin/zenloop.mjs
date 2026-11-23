@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync, spawn } from "node:child_process";
 import { gate } from "../src/gate.mjs";
-import { init } from "../src/init.mjs";
+import { init, addPack, listPacks } from "../src/init.mjs";
 import { verify, formatFeedback } from "../src/engine.mjs";
 import { writeReport } from "../src/report.mjs";
 import { findRoot, loadConfig, isReachable, isGitRepo, readState, writeState } from "../src/workspace.mjs";
@@ -42,6 +42,9 @@ const HELP = `zenloop ${VERSION} — your agent isn't done until Kane CLI says p
   zenloop run [--spec id[,id]] [--all] [--url https://preview.example.com]
         Verify now (changed-file aware). Exit 0 pass, 1 fail, 2 error.
         --url runs the same specs against a deployed preview/production URL.
+  zenloop add <pack>
+        Add a ready-made spec pack, e.g. \`zenloop add security\` (keys in network,
+        secrets in storage, env leaks, insecure cookies, hidden 5xx/console errors).
   zenloop gate
         Claude Code Stop hook entry point (reads hook JSON on stdin).
   zenloop report [--open]
@@ -109,6 +112,19 @@ async function main() {
       const st = readState(root);
       delete st.sessions.manual;
       writeState(root, st);
+      return;
+    }
+
+    case "add": {
+      const root = requireRoot();
+      const cfg = loadConfig(root);
+      const pack = rest.find((a) => !a.startsWith("--"));
+      if (!pack) {
+        console.log(`Available spec packs: ${listPacks().join(", ")}\nUsage: zenloop add <pack>`);
+        return;
+      }
+      for (const line of addPack(root, cfg.specs, pack)) console.log(c.g("✓ ") + line);
+      console.log(c.d("Specs marked deployed_only run only with `zenloop run --url <deployment>`."));
       return;
     }
 
