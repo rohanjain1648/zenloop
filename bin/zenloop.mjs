@@ -42,6 +42,7 @@ const HELP = `zenloop ${VERSION} — your agent isn't done until Kane CLI says p
   zenloop run [--spec id[,id]] [--all] [--url https://preview.example.com]
         Verify now (changed-file aware). Exit 0 pass, 1 fail, 2 error.
         --url runs the same specs against a deployed preview/production URL.
+        --mode run|testmd overrides kaneMode for this run.
   zenloop add <pack>
         Add a ready-made spec pack, e.g. \`zenloop add security\` (keys in network,
         secrets in storage, env leaks, insecure cookies, hidden 5xx/console errors).
@@ -84,6 +85,10 @@ async function main() {
         // Verify a deployment (preview/production) instead of the local dev server.
         cfg.baseUrl = flag("url");
         cfg.devServer = null;
+      }
+      if (flag("mode")) {
+        cfg.kaneMode = flag("mode");
+        if (cfg.kaneMode !== "testmd") cfg.replay = false;
       }
       const only = flag("spec") ? flag("spec").split(",") : null;
       const out = await verify(root, cfg, {

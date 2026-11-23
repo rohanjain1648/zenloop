@@ -25,8 +25,12 @@ export function isInfraFlake(r) {
   if (r.status === "passed") return false;
   // Kane exited without ever producing a verdict: tooling problem, not an app bug.
   if (r.status === "error") return true;
-  const text = [r.reason, r.summary, ...(r.errors || [])].filter(Boolean).join(" ");
-  return INFRA_PATTERNS.test(text);
+  // Concrete evidence of a violation always wins over incidental timeouts mentioned elsewhere.
+  const all = [r.reason, r.summary, ...(r.errors || [])].filter(Boolean).join(" ");
+  if (/objective_contradiction|\bviolat(es|ing|ion)\b/i.test(all)) return false;
+  // Judge flakiness on Kane's primary reason; the summary often mentions secondary timeouts.
+  const primary = r.reason || (r.errors || [])[0] || r.summary || "";
+  return INFRA_PATTERNS.test(primary);
 }
 
 /** Pull Kane's triage, failing screenshot, console and network failures out of the evidence pack. */

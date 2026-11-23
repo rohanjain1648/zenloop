@@ -55,6 +55,12 @@ test("infra flakes are distinguished from real app failures", () => {
   assert.ok(isInfraFlake({ status: "failed", reason: "Network request URL extraction timed out, so the required observation could not be verified." }));
   assert.ok(isInfraFlake({ status: "failed", reason: "Cookie inspection timed out, so the required security assertion cannot be verified." }));
   assert.ok(!isInfraFlake({ status: "failed", reason: "The session timed out page shows an error to the user" }));
+  // Real Kane run on myzenn.com: genuine violation + incidental timeout in the summary must stay a FAILURE
+  assert.ok(!isInfraFlake({
+    status: "failed",
+    reason: "MySafe sends Google requests with a query parameter named key whose value starts with AIza, violating the required security check.",
+    summary: "Mumbai results loaded, but repeated network snapshot inspections timed out. evidence: objective_contradiction: GET https://maps.googleapis.com/maps/api/js?key=AIza…",
+  }));
   assert.ok(!isInfraFlake({ status: "passed", reason: "TargetClosedError" }));
 });
 
