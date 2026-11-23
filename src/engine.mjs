@@ -18,7 +18,7 @@ import {
 } from "./workspace.mjs";
 
 const INFRA_PATTERNS =
-  /TargetClosedError|browser (has been )?closed|Target page, context or browser|Connection closed while reading|reading from the driver|ECONNRESET|CDP .*timed? ?out|Chrome .*(crash|failed to launch)|Screenshot failed/i;
+  /TargetClosedError|browser (has been )?closed|Target page, context or browser|Connection closed while reading|reading from the driver|ECONNRESET|CDP .*timed? ?out|Chrome .*(crash|failed to launch)|Screenshot failed|(analy[sz]er|analyses|capture|extraction|inspection|check tool)[^.]{0,40}timed out|timed out[^.]{0,40}(analy[sz]er|capture|extraction|inspection)/i;
 
 /** A failure caused by the browser/tooling rather than by the app under test. */
 export function isInfraFlake(r) {

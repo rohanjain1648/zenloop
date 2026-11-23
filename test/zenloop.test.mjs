@@ -50,6 +50,11 @@ test("tool errors are reported separately and never as the agent's failure", () 
 test("infra flakes are distinguished from real app failures", () => {
   assert.ok(isInfraFlake({ status: "failed", reason: "Screenshot failed: TargetClosedError: screenshot: Target page, context or browser has been closed" }));
   assert.ok(!isInfraFlake({ status: "failed", reason: "The Need help now button is not visible" }));
+  // Real Kane 0.10.6 analyzer timeouts seen on the security pack
+  assert.ok(isInfraFlake({ status: "failed", reason: "Required storage analyzer repeatedly timed out despite direct inspection showing only unrelated keys." }));
+  assert.ok(isInfraFlake({ status: "failed", reason: "Network request URL extraction timed out, so the required observation could not be verified." }));
+  assert.ok(isInfraFlake({ status: "failed", reason: "Cookie inspection timed out, so the required security assertion cannot be verified." }));
+  assert.ok(!isInfraFlake({ status: "failed", reason: "The session timed out page shows an error to the user" }));
   assert.ok(!isInfraFlake({ status: "passed", reason: "TargetClosedError" }));
 });
 
