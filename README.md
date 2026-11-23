@@ -132,9 +132,16 @@ This adds five plain-English Kane specs, based on the Kane CLI cookbook:
 
 Specs marked `deployed_only: true` are skipped against a local dev server and run with `zenloop run --url https://your-deploy`.
 
-## Replay mode (experimental)
+## Cheaper runs: `kaneMode: "testmd"`
 
-Set `"replay": true` in `zenloop.config.json`. Each spec is then compiled to a Kane `_test.md`, one step per line, and run with `kane-cli testmd run`. The first run records it, and later runs replay the recording instead of re-planning every step with the model. If the spec text changes, the recording is thrown away and re-authored.
+Set `"kaneMode": "testmd"` in `zenloop.config.json`. Each spec is then compiled to a Kane `_test.md`, one step per line, and run with `kane-cli testmd run`. We measured the same crisis-button spec on the same machine:
+
+| mode | credits per run | regression caught? |
+|---|---|---|
+| `kane-cli run` (default) | 23–27 | ✓ |
+| `kane-cli testmd run` (`kaneMode: "testmd"`) | **8–11** | ✓ (button hidden → failed: "Need help now is still visible on screen") |
+
+Kane's record-once/replay caching for `_test.md` commits recordings through its cloud test manager (`--push` and the lock API), so ZenLoop doesn't rely on it. Every run is a full, fresh verification.
 
 ## Why the loop stays honest
 

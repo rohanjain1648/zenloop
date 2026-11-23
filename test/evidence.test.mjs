@@ -132,4 +132,15 @@ test("feedback hands the agent Kane's root cause and the screenshot path", () =>
   assert.match(msg, /Kane suggests: Keep it visible/);
   assert.match(msg, /Screenshot of the failing screen: \.zenloop\/evidence\/r1\/crisis\.jpg/);
   assert.match(msg, /Console error: TypeError: x/);
+  assert.doesNotMatch(msg, /suspects the test/);
+});
+
+test("when Kane blames the test, the agent is told to escalate, not edit the spec", () => {
+  const msg = formatFeedback({
+    attempt: 1,
+    maxAttempts: 3,
+    results: [{ name: "Crisis", file: "k", severity: "critical", status: "failed", evidence: { rootCause: "The test assumed the button stays visible", category: "automation_bug/state_transition_bug" } }],
+  });
+  assert.match(msg, /suspects the test, not the app/);
+  assert.match(msg, /stop and explain that to the human instead of editing the spec/);
 });

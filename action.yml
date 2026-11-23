@@ -1,0 +1,83 @@
+name: ZenLoop verify
+description: Run your plain-English Kane CLI specs against a deployed preview (or any URL) and fail the check if any spec fails.
+author: Rohan Jain
+branding:
+  icon: check-circle
+  color: green
+
+inputs:
+  url:
+    description: Base URL to verify (e.g. a Vercel/Netlify preview URL).
+    required: true
+  working-directory:
+    description: Directory containing zenloop.config.json.
+    required: false
+    default: "."
+  specs:
+    description: Comma-separated spec ids to run (default: all applicable specs).
+    required: false
+    default: ""
+  lt-username:
+    description: TestMu AI / LambdaTest username (store as a secret).
+    required: true
+  lt-access-key:
+    description: TestMu AI / LambdaTest access key (store as a secret).
+    required: true
+
+outputs:
+  report:
+    description: Path to the generated HTML report.
+    value: ${{ steps.report.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install Kane CLI
+      shell: bash
+      run: npm install -g @testmuai/kane-cli
+
+    - name: Log in to Kane CLI
+      shell: bash
+      env:
+        LT_USERNAME: ${{ inputs.lt-username }}
+        LT_ACCESS_KEY: ${{ inputs.lt-access-key }}
+      run: kane-cli login --username "$LT_USERNAME" --access-key "$LT_ACCESS_KEY"
+
+    - name: Verify with Kane CLI
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ZL_URL: ${{ inputs.url }}
+        ZL_SPECS: ${{ inputs.specs }}
+        ZL_BIN: ${{ github.action_path }}/bin/zenloop.mjs
+      run: |
+        ARGS=(run --url "$ZL_URL" --feedback)
+        if [ -n "$ZL_SPECS" ]; then ARGS+=(--spec "$ZL_SPECS"); else ARGS+=(--all); fi
+        node "$ZL_BIN" "${ARGS[@]}"
+
+    - name: Build report
+      id: report
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ZL_BIN: ${{ github.action_path }}/bin/zenloop.mjs
+        ZL_DIR: ${{ inputs.working-directory }}
+      run: |
+        node "$ZL_BIN" report
+        echo "path=$ZL_DIR/.zenloop/report.html" >> "$GITHUB_OUTPUT"
+
+    - name: Upload report and Kane evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: zenloop-report
+        path: |
+          ${{ inputs.working-directory }}/.zenloop/report.html
+          ${{ inputs.working-directory }}/.zenloop/evidence/
+          ${{ inputs.working-directory }}/.zenloop/runs.jsonl
+        if-no-files-found: ignore

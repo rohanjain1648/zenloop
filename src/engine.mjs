@@ -117,7 +117,9 @@ export async function verify(root, cfg, { session = "manual", only = null, force
         const s = selected[i];
         log(`kane ▸ ${s.name}`);
         const logFile = path.join(root, ".zenloop", "runs", runId, `${s.id}.ndjson`);
-        const replayDir = cfg.replay ? path.join(root, ".zenloop", "replay") : undefined;
+        // kaneMode "testmd": run specs as step-structured Kane _test.md files (cheaper per run).
+        const testmd = cfg.kaneMode === "testmd" || cfg.replay === true;
+        const replayDir = testmd ? path.join(root, ".zenloop", "testmd") : undefined;
         let r = await runSpec(s, cfg.baseUrl, cfg.kane, { logFile, onEvent, replayDir });
         if (isInfraFlake(r)) {
           // Browser/infra hiccup is not the agent's bug: retry once before reporting.
@@ -197,6 +199,11 @@ export function formatFeedback({ results, attempt, maxAttempts, changed, tampere
       lines.push(`  Kane root cause${ev.confidence ? ` (confidence ${ev.confidence})` : ""}: ${ev.rootCause}`);
       if (ev.category) lines.push(`  Category: ${ev.category}`);
       if (ev.suggestedFix) lines.push(`  Kane suggests: ${ev.suggestedFix}`);
+      if (/^automation_bug|test_issue|spec/i.test(ev.category || "")) {
+        lines.push(
+          "  ⚠ Kane's triage suspects the test, not the app. Kane's triage is a hint, not a verdict: the spec is the source of truth. Check the screenshot. If the app really violates the spec, fix the app. If you believe the spec itself is wrong, stop and explain that to the human instead of editing the spec.",
+        );
+      }
     } else if (r.summary && r.summary !== r.reason) {
       lines.push(`  Summary: ${String(r.summary).slice(0, 500)}`);
     }

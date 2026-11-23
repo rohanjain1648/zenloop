@@ -1,0 +1,18 @@
+# .github/workflows/zenloop.yml
+# Verify every Vercel/Netlify preview deployment with the same Kane specs your agent is gated on.
+name: ZenLoop
+
+on:
+  deployment_status:
+
+jobs:
+  verify:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rohanjain1648/zenloop@main
+        with:
+          url: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          lt-username: ${{ secrets.LT_USERNAME }}
+          lt-access-key: ${{ secrets.LT_ACCESS_KEY }}
